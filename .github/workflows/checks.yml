@@ -1,6 +1,7 @@
 # Required PR checks (spec §6, §9, §10). Job names are unique across workflows: the dev and
 # stage rulesets require `scope`, `ci` and `gitleaks` by name from the GitHub Actions source.
 # Pins change only through human changes.
+# Demo for #27: an infrastructure change. Not for merging.
 name: checks
 
 on:
