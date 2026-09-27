@@ -288,7 +288,7 @@ Source: [Define the repository architecture and quality-gate contract](https://g
   - `gitleaks`.
 - **Repository settings:** secret scanning with push protection is on.
 - **`scope`** fails any PR **into `dev`** that mixes infrastructure paths with product paths.
-  - Infrastructure paths: `.github/`, `.sandcastle/`, `.eas/`, `package.json`/lockfile, `app.config.ts`, `eas.json`, `wrangler.jsonc`, `.husky/`.
+  - Infrastructure paths: `.github/`, `.sandcastle/`, `.eas/`, `package.json`/lockfile, `app.config.ts`, `eas.json`, `wrangler.jsonc`, `.husky/`, `scripts/` (the gate scripts, so a PR can't rewrite its own check).
   - Product paths: `app/`, `src/`, `functions/`, `tests/`, `e2e/`, `public/`.
   - Other paths, such as `docs/` and `CONTEXT.md`, are neutral.
   - On PRs into `stage` it runs and reports success, because promotions bundle both kinds of change.
