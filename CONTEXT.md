@@ -59,17 +59,21 @@ An authorized tester permitted to declare the Langili skeleton or pipeline-valid
 For the first skeleton milestone, either `harminder0209` or `singhpankaj99` may approve independently.
 
 **Authorization event**:
-One specific application of the `ready-for-agent` label to an issue by `harminder0209` or `singhpankaj99`.
-It is the only thing that can start an agent run; the label merely being present, a rerun, or a comment is not authorization.
+One manual dispatch of the AFK workflow on `dev` by `harminder0209` or `singhpankaj99`.
+It is the only thing that can start agent work; labels, comments and re-runs never do.
+
+**AFK run**:
+One authorized execution of the AFK workflow: up to a set number of agent runs, one ready ticket each, ending in a single pull request into `dev` that a human merges.
+Agent code never reaches `dev` without a human merge.
+_Avoid_: agent self-merge, auto-merge
 
 **Agent run**:
-One sandboxed coding-agent execution against the single issue named by an authorization event, started at most once per authorization event.
+One sandboxed coding-agent execution against exactly one ready ticket, inside an AFK run.
 _Avoid_: agent job, loop
 
-**Agent self-merge**:
-An agent run merging its own pull request into `dev` after the required checks pass, without human review, allowed only when the change touches product code alone.
-Changes to infrastructure or workflow always need a human merge.
-_Avoid_: auto-merge
+**Ready ticket**:
+An open issue with a `## Parent` section, the `ready-for-agent` label and no open blockers; the only kind of issue an AFK run builds.
+Specs and maps are never ready tickets.
 
 **Acceptance record**:
 The single durable record of the evidence and verdict for one promoted candidate: what was deployed, what was checked, and who approved it.
