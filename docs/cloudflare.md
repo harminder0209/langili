@@ -1,8 +1,9 @@
 # Cloudflare runbook
 
 How the development deployment and the canonical staging origin are set up and checked (spec §7,
-issue #28). Every step here is done by an administrator in the Cloudflare dashboard. Never write
-tester passwords, account IDs or recovery material into this file, any issue or any chat.
+issue #28). Every step here is done by an administrator in the Cloudflare and Google Cloud
+consoles. Never write secrets, tester email addresses, account IDs or recovery material into this
+file, any issue or any chat.
 
 ## Account
 
@@ -11,7 +12,7 @@ tester passwords, account IDs or recovery material into this file, any issue or 
   Nothing upgrades automatically.
 - MFA on for both administrators. The second administrator has an individual login with only
   the roles needed for Pages.
-- No Zero Trust: its Free plan requires a payment method, so tester access is a Basic-auth
+- No Zero Trust: its Free plan requires a payment method, so tester access is a Google sign-in
   middleware instead (below).
 - No Cloudflare API token is created for GitHub. Builds use the GitHub integration only.
 
@@ -58,35 +59,50 @@ values and preview gets the development values.
 
 ## Tester access
 
-`functions/_middleware.ts` asks for HTTP Basic credentials on every path of every deployment,
-including each deployment's own `<hash>.<project>.pages.dev` URL. It checks them against the
-encrypted Function secret `TESTER_CREDENTIALS`:
+`functions/_middleware.ts` puts Google sign-in in front of every path of both hostnames. A
+signed-out page visit goes to Google, and only the Gmail addresses in `TESTER_EMAILS` get back
+in, with a 24-hour session cookie for that hostname. Anything missing or malformed in the
+settings below makes every path answer `503`.
 
-- One `name:password` entry per tester, comma-separated, for example `harminder:<password>,pankaj:<password>`.
-- Each password is at least 16 characters with no spaces or commas. Generate them with
-  `openssl rand -base64 24`, and keep each in that tester's password manager.
-- Use different passwords for production (`stage`) and preview (`dev`).
-- A missing or malformed secret makes every path answer `503`, so a misconfiguration never opens
-  the deployment.
+**Google OAuth client** (Google Cloud console, free, no billing account):
 
-To set or rotate it: Settings → choose **Production** or **Preview** → Variables and secrets →
-Add → type **Secret**, name `TESTER_CREDENTIALS`, then paste the value and save. A secret applies to
-the next deployment, so retry the latest deployment afterwards.
+1. Create a project, for example `langili-testers`.
+2. Google Auth Platform → Branding: app name `Langili`, your support email. Audience: **External**,
+   left in **Testing**, with both testers' Gmail addresses added as test users.
+3. Clients → Create client → **Web application**, with these authorized redirect URIs:
+   - `https://langili.pages.dev/auth/callback`
+   - `https://dev.langili.pages.dev/auth/callback`
+   - `http://localhost:8788/auth/callback`
+4. Keep the client ID and client secret for the next step. Don't paste them anywhere else.
 
-Locally, put a `TESTER_CREDENTIALS` entry in `.dev.vars` for `npm run dev:pages`. The Playwright
-suite starts its own server with a local-only e2e credential.
+**Cloudflare** (Settings → Variables and secrets, once under **Production** and once under
+**Preview**):
+
+| Name                   | Type   | Value                                                        |
+| ---------------------- | ------ | ------------------------------------------------------------ |
+| `GOOGLE_CLIENT_ID`     | Text   | The client ID                                                |
+| `GOOGLE_CLIENT_SECRET` | Secret | The client secret                                            |
+| `SESSION_SECRET`       | Secret | `openssl rand -base64 32`, different for each environment    |
+| `TESTER_EMAILS`        | Text   | Both Gmail addresses, comma-separated                        |
+
+Variables apply to the next deployment, so retry the latest deployment after changing them.
+Changing `SESSION_SECRET` signs everyone out, which is how sessions are revoked.
+
+Locally, put the same four keys in `.dev.vars` for `npm run dev:pages`. The Playwright suite
+starts its own server with local-only settings and signs itself in.
 
 ## Verification
 
 Record the results on the ticket, without email addresses or session material.
 
 1. Push a commit to `dev`. Note the head SHA with `git rev-parse origin/dev`.
-2. In a browser, open `https://dev.<project>.pages.dev/api/health` and sign in as a tester. It shows
+2. In a browser, open `https://dev.<project>.pages.dev/` and sign in with Google as a tester, then
+   open `/api/health`. It shows
    `"environment": "development"` and `"version"` equal to that SHA.
 3. Open a client route such as `https://dev.<project>.pages.dev/anything`. The app loads.
 4. In a private window (signed out), open the app and `/api/health` on both hostnames, plus a
-   `<hash>.<project>.pages.dev` deployment URL. Each shows the browser's sign-in prompt, and
-   cancelling it gives `401`, never the app or the health JSON.
+   `<hash>.<project>.pages.dev` deployment URL. Pages go to Google's sign-in, `/api/health` answers
+   `401`, and a Gmail account that isn't allowlisted gets `403`. Never the app or the health JSON.
 5. Push a branch other than `dev` or `stage`. No deployment appears.
 6. Check the account is still on Workers Free with no payment method, and that GitHub holds no
    Cloudflare token.

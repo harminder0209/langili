@@ -13,6 +13,8 @@ module.exports = {
       transform: {
         '\\.[jt]s$': ['babel-jest', { presets: ['babel-preset-expo'] }],
       },
+      // arctic, jose and arctic's @oslojs dependencies ship only as ES modules.
+      transformIgnorePatterns: ['/node_modules/(?!(arctic|jose|@oslojs)/)'],
     },
     {
       displayName: 'scripts',

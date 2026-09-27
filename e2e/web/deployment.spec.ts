@@ -22,13 +22,24 @@ test('GET /api/health reports the development environment and a full commit as t
 });
 
 test.describe('signed out', () => {
-  for (const path of ['/', '/some/client/route', '/favicon.ico', '/api/health']) {
-    test(`is challenged for ${path}`, async ({ baseURL }) => {
-      // Plain fetch, because Playwright request contexts inherit the configured tester credentials.
+  // Plain fetch, because Playwright request contexts carry the signed-in tester's cookie.
+  for (const path of ['/', '/some/client/route']) {
+    test(`a page visit to ${path} is sent to Google`, async ({ baseURL }) => {
+      const response = await fetch(new URL(path, baseURL), {
+        headers: { Accept: 'text/html' },
+        redirect: 'manual',
+      });
+
+      expect(response.status).toBe(302);
+      expect(new URL(response.headers.get('location')!).origin).toBe('https://accounts.google.com');
+    });
+  }
+
+  for (const path of ['/favicon.ico', '/api/health']) {
+    test(`is refused ${path}`, async ({ baseURL }) => {
       const response = await fetch(new URL(path, baseURL));
 
       expect(response.status).toBe(401);
-      expect(response.headers.get('www-authenticate')).toMatch(/^Basic realm="Langili"/);
     });
   }
 });

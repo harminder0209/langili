@@ -327,15 +327,18 @@ Sources: [Verify the Cloudflare web, PWA, and staging API topology](https://gith
 
 ### Access
 
-- A root Pages Functions middleware (`functions/_middleware.ts`) protects both hostnames, and every deployment URL, with HTTP Basic auth. It denies by default.
+- A root Pages Functions middleware (`functions/_middleware.ts`) protects both hostnames with Google sign-in. It denies by default.
   - Cloudflare Access was dropped: Zero Trust Free needs a payment method on file, which [§14](#14-cost-boundary) forbids.
-- Each authorized tester (`harminder0209`, `singhpankaj99`) has their own name and password. Passwords are at least 16 characters and are never shared or published.
-- The credentials live only in the encrypted Function secret `TESTER_CREDENTIALS` (`name:password` entries, comma-separated), set separately for production and preview.
-- A missing or malformed secret fails closed with `503` and the error envelope. Nothing is served.
+  - It uses `arctic` for the OAuth code flow with PKCE and `jose` for the session cookie. There is no database.
+- The allowlist holds the exact Gmail addresses of `harminder0209` and `singhpankaj99`, in the Function variable `TESTER_EMAILS`. It's configured privately and never published.
+- Only a verified email on the allowlist gets a session: a signed, HttpOnly cookie that lasts 24 hours and is bound to the origin that issued it, so a `dev` session doesn't open `stage`.
+- A signed-out page visit is sent to Google. A signed-out API call gets `401` and the error envelope, never a redirect.
+- The Google OAuth client lists only the two hostnames' `/auth/callback` (plus local development), so per-deployment `<hash>` URLs can't complete a sign-in and stay closed.
+- Missing or malformed configuration fails closed with `503` and the error envelope. Nothing is served.
 - Every path, including static assets and `/api/health`, sits behind the middleware. There are no public routes.
 - Every request now counts against the Functions quota ([Quota](#quota)), which is ample for two testers.
-- **Native devices:** open. The native clients need a way to send tester credentials without embedding them in the bundle. Re-plan before #34.
-- **No machine identity:** CI and monitors don't hold deployed credentials, so runtime checks are done by a human. CI tests the middleware against a local-only credential.
+- **Native devices:** open. The native clients need their own sign-in, for example a Google sign-in that yields a token the API accepts. Re-plan before #34.
+- **No machine identity:** CI and monitors can't sign in to the deployments, so runtime checks are done by a human. CI tests the middleware with local-only settings and a session it mints itself.
 
 ### Ownership
 
@@ -640,7 +643,8 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 | Cloudflare Function secrets | Encrypted Cloudflare secrets: production (staging values) and preview (development values) | Both Cloudflare administrators | GitHub, committed files, `EXPO_PUBLIC_*`, issues, agent environments |
 | EAS signing credentials | EAS remote credentials, plus `harminder0209`'s encrypted keystore backup | Expo Owner and Admin | The repository, `credentials.json`, any working copy |
 | `GITHUB_TOKEN` | A single job, scoped to that job, expiring when the job ends | GitHub | The sandbox |
-| Tester passwords | The `TESTER_CREDENTIALS` Function secret; each tester's own password manager | Both Cloudflare administrators | The repository, the specification, issues, chat transcripts |
+| Google OAuth client secret and `SESSION_SECRET` | Encrypted Function secrets, separate for production and preview | Both Cloudflare administrators | The repository, the specification, issues, chat transcripts |
+| Tester Gmail addresses | The `TESTER_EMAILS` Function variable | Both Cloudflare administrators | The repository, the specification, issues |
 | MFA and recovery codes | `harminder0209`'s password manager | The owners | The repository, the specification, issues |
 
 - There is no `EXPO_TOKEN`, no Cloudflare API token, no PAT and no GitHub App credential.
@@ -673,9 +677,9 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 6. **Tickets close before their code merges.**
    - A green pass closes its ticket straight away so dependants unblock. If the AFK PR then fails its checks and is closed without merging, those tickets are wrongly closed.
    - Recovery is a human reopening them. A crashed run leaves its green passes on the pushed branch.
-7. **Basic auth instead of an identity provider.**
-   - The deployments are guarded by passwords, not by Cloudflare Access with one-time PINs: no lockout, no MFA, no per-session expiry, and browsers keep the credentials until they're closed.
-   - What limits it: one strong password per tester, held only in an encrypted secret, HTTPS only, a fail-closed middleware, and no user data behind it. A leaked password is rotated by changing the secret.
+7. **Our own sign-in code guards the deployments.**
+   - The gate is a middleware in this repository rather than Cloudflare Access, so a bug in it, or agent-written changes to it, could open the deployments.
+   - What limits it: small, tested code on maintained libraries; Google holds the passwords and 2-step verification; the allowlist is exact; misconfiguration fails closed; there's no user data behind it; and rotating `SESSION_SECRET` ends every session.
 
 ## 16. Verify at implementation
 
@@ -762,7 +766,7 @@ Where decisions conflicted, the later one wins.
 | EAS channel `preview` ([Verify Expo preview compatibility and runtime fingerprinting](https://github.com/harminder0209/langili/issues/3)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | Channel `staging`. The build profile stays `preview`. |
 | Staging values only in `eas.json` ([Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15)) | [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17) | Also plain-text EAS `preview` variables, because `eas update` ignores the profile's `env` |
 | Physical iPhone ([Define verification evidence and rollback acceptance](https://github.com/harminder0209/langili/issues/4)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | EAS iOS Simulator build |
-| Cloudflare Access with email one-time PIN and WARP ([Define Cloudflare provisioning and preview access policy](https://github.com/harminder0209/langili/issues/12)) | [Cloudflare development deployment and canonical staging origin](https://github.com/harminder0209/langili/issues/28): Zero Trust Free needs a payment method | Basic-auth middleware with per-tester passwords; native access re-planned |
+| Cloudflare Access with email one-time PIN and WARP ([Define Cloudflare provisioning and preview access policy](https://github.com/harminder0209/langili/issues/12)) | [Cloudflare development deployment and canonical staging origin](https://github.com/harminder0209/langili/issues/28): Zero Trust Free needs a payment method | Google sign-in middleware with an exact Gmail allowlist; native access re-planned |
 | Only the admin promotes to `stage`, then a code-owner approval from the other approver ([Decide the GitHub ownership model for two-person administration](https://github.com/harminder0209/langili/issues/19)) | This specification's approval | Either approver promotes alone, with no approvals required and no `CODEOWNERS` |
 | Auto-merge disabled until validation, and validation doesn't enable it | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | Agent self-merge into `dev` from day one, limited to product paths |
 | A dedicated low-quota API key for the model ([Verify secure Sandcastle activation from GitHub](https://github.com/harminder0209/langili/issues/7)) | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | A subscription OAuth token, revocable, the only secret in the sandbox |
