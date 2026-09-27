@@ -70,3 +70,7 @@ _Avoid_: agent job, loop
 An agent run merging its own pull request into `dev` after the required checks pass, without human review, allowed only when the change touches product code alone.
 Changes to infrastructure or workflow always need a human merge.
 _Avoid_: auto-merge
+
+**Acceptance record**:
+The single durable record of the evidence and verdict for one promoted candidate: what was deployed, what was checked, and who approved it.
+Each promotion to `stage` gets exactly one acceptance record.
