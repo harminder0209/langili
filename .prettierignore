@@ -1,0 +1,14 @@
+dist/
+.expo/
+functions/types.d.ts
+coverage/
+test-results/
+playwright-report/
+blob-report/
+package-lock.json
+assets/
+
+# vendored agent skills and hand-written planning docs
+.agents/
+.claude/
+docs/
