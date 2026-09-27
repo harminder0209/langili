@@ -458,7 +458,7 @@ Source: [Define the delivery workflow and promotion gates](https://github.com/ha
 
 Sources: [Verify secure Sandcastle activation from GitHub](https://github.com/harminder0209/langili/issues/7), [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) and [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17), as amended by the AFK amendment ([Appendix B](#appendix-b-reconciliation-log)).
 
-Agent work runs as an **AFK run**: the same one-ticket-per-pass Sandcastle loop as a local `make afk`, moved onto a GitHub-hosted runner.
+Agent work runs as an **AFK run**: the same one-ticket-per-pass Sandcastle loop as a local `make afk`, moved onto a GitHub-hosted runner. It ends with **agent self-merge** of one PR into `dev`.
 
 ### Trigger
 
@@ -505,9 +505,17 @@ Agent work runs as an **AFK run**: the same one-ticket-per-pass Sandcastle loop 
 
 - The runner creates the AFK branch `afk/<run-id>` from the `dev` head at the start. Cloudflare doesn't build it.
 - After the first green pass it opens a draft PR into `dev`, and pushes after every later green pass, so a crash never loses finished work.
-- At the end it marks the PR ready. The body lists each ticket, its summary and its deferred checks. The runner then starts `checks.yml` with `workflow_dispatch` on the branch, because PRs opened with `GITHUB_TOKEN` don't trigger `pull_request`.
-- **A human merges the PR.** There is no agent self-merge.
-- If the PR is closed without merging, the human reopens the tickets it closed.
+- At the end it marks the PR ready. The body lists each ticket, its summary and its deferred checks. The runner then starts `checks.yml` with `workflow_dispatch` on the branch, because PRs opened with `GITHUB_TOKEN` don't trigger `pull_request`. It finds that run by head SHA and watches it.
+
+### Agent self-merge
+
+- The runner merges the AFK PR into `dev` itself, with no human review, when all of these hold:
+  - `scope`, `ci` and `gitleaks` have passed on the PR's head SHA;
+  - every changed file across the whole PR is on a product path;
+  - the head hasn't moved: `gh pr merge --merge --match-head-commit <sha>`. A merge commit keeps one `AFK: #<n>` commit per ticket.
+- It then deletes the branch. The merge reaches the **development deployment** through Cloudflare's normal `dev` build.
+- If any condition fails, nothing merges. The runner comments on the PR with the reason and leaves it open. A human then fixes and merges it, or closes it and reopens the tickets it closed.
+- The human gate is **promotion** to `stage`, not the merge into `dev`.
 
 ### Hostile input
 
@@ -542,7 +550,7 @@ Agent work runs as an **AFK run**: the same one-ticket-per-pass Sandcastle loop 
 
 - At most 8 passes per AFK run, each with a 30-minute idle timeout.
 - The `afk` job times out at 340 minutes, under GitHub's 6-hour limit.
-- The runner watches the dispatched checks for about 15 minutes, then leaves them to finish on their own.
+- The runner watches the dispatched checks for up to 20 minutes. If they haven't finished by then, it doesn't merge, and the PR is left for a human.
 
 ### Audit
 
@@ -616,7 +624,7 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
     1. an AFK run started by an approver;
     2. the agent run on the validation ticket;
     3. CI on the AFK PR;
-    4. a human merge to `dev`;
+    4. agent self-merge of the AFK PR into `dev`;
     5. human check on the development deployment;
     6. promotion to `stage`;
     7. Cloudflare deploy and EAS Update;
@@ -646,29 +654,30 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 
 ## 15. Accepted risks
 
-1. **Agent code reaches `dev` after a light review.**
-   - A human merges each AFK PR, often from a phone, so code shaped by prompt injection could still reach the development deployment, including Function code that can read the development secrets.
-   - What limits it: the per-pass product-path guard, the required checks, the human merge, Access on the deployment, and the human promotion to `stage`.
+1. **Unreviewed agent code reaches `dev`.**
+   - Agent self-merge means code shaped by prompt injection can reach the development deployment, including Function code that can read the development secrets.
+   - What limits it: the product-path guard on every pass and on the whole PR, the required checks, Access on the deployment, and the human promotion to `stage`.
 2. **No egress filtering in the sandbox.**
    - A prompt-injected agent could send the model token elsewhere.
    - What limits it: the token is revocable, it's the only secret present, the job token expires when the job ends, and the job has a timeout.
 3. **The queue trusts `ready-for-agent`.**
    - `/to-tickets` applies the label to every product ticket it publishes, so an AFK run builds every unblocked ticket without a separate approval per ticket.
-   - What limits it: an approver reviews the tickets before dispatching, removes the label from anything that shouldn't be built yet, and merges the PR.
+   - What limits it: an approver reviews the tickets before dispatching and removes the label from anything that shouldn't be built yet. After that, the only human check before canonical staging is the promotion.
 4. **Nobody else reviews a promotion.**
    - Either approver can promote to `stage` alone, so agent-written code can reach canonical staging with only one person having looked at the development deployment.
    - What limits it: the required checks, the acceptance record, and instant rollback.
 5. **No spend lock on Cloudflare.**
    - The no-billing guarantee depends on staying on Workers Free and not enabling paid products.
 6. **Tickets close before their code merges.**
-   - A green pass closes its ticket straight away so dependants unblock. If the AFK PR is then closed without merging, those tickets are wrongly closed.
+   - A green pass closes its ticket straight away so dependants unblock. If the AFK PR then fails its checks and is closed without merging, those tickets are wrongly closed.
    - Recovery is a human reopening them. A crashed run leaves its green passes on the pushed branch.
 
 ## 16. Verify at implementation
 
 These are fixed as requirements. Only the method is still open. If one of them fails, re-plan before continuing.
 
-- Check runs started by `workflow_dispatch` satisfy the `dev` required checks, as the ruleset's source setting requires.
+- Check runs started by `workflow_dispatch` satisfy the `dev` required checks, as the ruleset's source setting requires. Without this, agent self-merge can't happen.
+- A merge made with `GITHUB_TOKEN` starts the Cloudflare `dev` build. The fallback is a human pressing "retry deployment".
 - The EAS Update receives the staging `EXPO_PUBLIC_*` values from the `preview` EAS environment.
 - The EAS Update carries the client revision ([§8](#8-mobile-eas)).
 - The Pages build commit reaches the Function as the API version through the generated module.
@@ -756,6 +765,6 @@ Where decisions conflicted, the later one wins.
 | No rule for the native client revision | This specification's approval | Injected by the EAS workflow, or read from update metadata. `Not supplied` fails acceptance. |
 | Diagnostics labels "Commit SHA" and "Build number" ([Define the diagnostics metadata contract](https://github.com/harminder0209/langili/issues/8)) | `CONTEXT.md` | The glossary terms **Client revision** and **Native build number** in the spec. The screen labels are unchanged. |
 | An `issues: labeled` event for `ready-for-agent` authorizes one agent run on that one issue, and `workflow_dispatch` is rejected ([Verify secure Sandcastle activation from GitHub](https://github.com/harminder0209/langili/issues/7), [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17)) | The AFK amendment | An approver's manual dispatch of `afk.yml` on `dev` starts an **AFK run**. The runner queues ready tickets, one per pass. Labels never start agents. |
-| Agent self-merge into `dev`, limited to product paths ([Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16)) | The AFK amendment | One AFK PR per run, which a human merges. The product-path guard runs on every pass. |
+| Agent self-merge of one PR per issue ([Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16)) | The AFK amendment | Agent self-merge of one AFK PR per run, after the required checks pass. The product-path guard runs on every pass and on the whole PR. |
 | Per-issue serialisation, and a claim comment keyed by the label event | The AFK amendment | Repository-wide serialisation, and re-runs rejected. A green pass closes its ticket. |
 | About 50 minutes per agent job | The AFK amendment | Up to 8 passes of 30 minutes each, within a 340-minute job |

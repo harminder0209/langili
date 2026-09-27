@@ -63,13 +63,17 @@ One manual dispatch of the AFK workflow on `dev` by `harminder0209` or `singhpan
 It is the only thing that can start agent work; labels, comments and re-runs never do.
 
 **AFK run**:
-One authorized execution of the AFK workflow: up to a set number of agent runs, one ready ticket each, ending in a single pull request into `dev` that a human merges.
-Agent code never reaches `dev` without a human merge.
-_Avoid_: agent self-merge, auto-merge
+One authorized execution of the AFK workflow: up to a set number of agent runs, one ready ticket each, ending in a single pull request into `dev`.
+_Avoid_: agent loop
+
+**Agent self-merge**:
+The AFK run merging its own pull request into `dev` after the required checks pass, without human review, allowed only when every changed file is product code.
+Changes to infrastructure or workflow always need a human merge; the human gate is promotion to `stage`.
+_Avoid_: auto-merge
 
 **Agent run**:
-One sandboxed coding-agent execution against exactly one ready ticket, inside an AFK run.
-_Avoid_: agent job, loop
+One sandboxed coding-agent execution against exactly one ready ticket, inside an AFK run; one pass of the AFK run.
+_Avoid_: agent job
 
 **Ready ticket**:
 An open issue with a `## Parent` section, the `ready-for-agent` label and no open blockers; the only kind of issue an AFK run builds.
