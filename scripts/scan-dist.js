@@ -125,4 +125,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { scanDist, secretValuesFrom };
+module.exports = { publicValuesAt, scanDist, secretValuesFrom };

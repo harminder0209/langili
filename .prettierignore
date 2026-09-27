@@ -1,6 +1,7 @@
 dist/
 .expo/
 functions/types.d.ts
+functions/build-info.ts
 coverage/
 test-results/
 playwright-report/
