@@ -9,7 +9,8 @@ Cloudflare Pages Functions API. See [`CONTEXT.md`](CONTEXT.md) for the vocabular
 - Node `24.21.0` (see `.nvmrc`) with its bundled npm `11.19.0`. npm is the only package manager.
 - Install with `npm ci`, never `npm install`, so the committed lockfile is reproduced exactly.
 - `.env` holds the non-secret development values. Local Function variables go in `.dev.vars`
-  (gitignored), using the key names in `.dev.vars.example`.
+  (gitignored), using the key names in `.dev.vars.example`. `npm run dev:pages` needs a
+  `TESTER_CREDENTIALS` entry there, or every path answers `503`.
 
 ## Everyday commands
 

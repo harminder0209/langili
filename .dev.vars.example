@@ -1,2 +1,4 @@
 # Cloudflare Pages Function variables for local `npm run dev:pages`.
 # Copy to .dev.vars (gitignored) and fill in values locally. Key names only here.
+# Comma-separated `name:password` entries, one per tester; passwords at least 16 characters.
+TESTER_CREDENTIALS=

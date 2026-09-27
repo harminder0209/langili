@@ -305,7 +305,7 @@ Sources: [Verify the Cloudflare web, PWA, and staging API topology](https://gith
 
 - One Pages project on **Workers Free**, connected to GitHub.
 - Each deploy is one unit: `expo export -p web` → `dist`, together with that revision's Functions.
-- `dist/_routes.json` sends only `/api/*` to Functions.
+- `dist/_routes.json` sends every path to Functions, so the tester-access middleware guards static assets as well as `/api/*`.
 - A Pages fallback serves the SPA.
 - The PWA manifest and icons come from `public/`. There is no service worker.
 
@@ -327,14 +327,15 @@ Sources: [Verify the Cloudflare web, PWA, and staging API topology](https://gith
 
 ### Access
 
-- Cloudflare Access protects both hostnames. It denies by default.
-- The allowlist holds exact email addresses for `harminder0209` and `singhpankaj99`, configured privately and never published.
-- Login is by email one-time PIN, and a session lasts 24 hours.
-- Every Function route, including `/api/health`, sits behind Access. There are no public routes.
-- **Native devices:**
-  - An Android device, or the Mac running the iOS Simulator, is enrolled in the Cloudflare One Client (WARP) with the same allowlisted identity.
-  - The setting "Authenticate with Cloudflare One Client" is on.
-- **No machine identity:** there are no service tokens. CI and monitors can't reach the deployed application, so runtime checks are done by a human.
+- A root Pages Functions middleware (`functions/_middleware.ts`) protects both hostnames, and every deployment URL, with HTTP Basic auth. It denies by default.
+  - Cloudflare Access was dropped: Zero Trust Free needs a payment method on file, which [§14](#14-cost-boundary) forbids.
+- Each authorized tester (`harminder0209`, `singhpankaj99`) has their own name and password. Passwords are at least 16 characters and are never shared or published.
+- The credentials live only in the encrypted Function secret `TESTER_CREDENTIALS` (`name:password` entries, comma-separated), set separately for production and preview.
+- A missing or malformed secret fails closed with `503` and the error envelope. Nothing is served.
+- Every path, including static assets and `/api/health`, sits behind the middleware. There are no public routes.
+- Every request now counts against the Functions quota ([Quota](#quota)), which is ample for two testers.
+- **Native devices:** open. The native clients need a way to send tester credentials without embedding them in the bundle. Re-plan before #34.
+- **No machine identity:** CI and monitors don't hold deployed credentials, so runtime checks are done by a human. CI tests the middleware against a local-only credential.
 
 ### Ownership
 
@@ -368,7 +369,7 @@ Sources: [Verify Expo preview compatibility and runtime fingerprinting](https://
   - MFA is required for both. There are no shared or robot accounts.
   - No payment method is on file.
 - **Platforms:**
-  - iOS is verified with an **EAS iOS Simulator build** on a Mac enrolled in WARP. There's no Apple Developer Program membership.
+  - iOS is verified with an **EAS iOS Simulator build**. There's no Apple Developer Program membership.
   - Android uses an internally distributed `preview` APK. There's no Play Console.
 - **Credentials:**
   - Credentials are managed remotely by EAS. None are in the repository.
@@ -576,7 +577,7 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 
 - **Coverage:**
   - Current desktop Chrome and Safari, at narrow and wide widths.
-  - The EAS iOS Simulator build on a Mac enrolled in WARP.
+  - The EAS iOS Simulator build.
   - One physical Android device.
   - Other browsers and devices are informative only.
 - **Automated:** every CI gate in [§6](#6-repository-architecture-and-quality-gates).
@@ -595,8 +596,8 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
   - Any mismatch that can't be explained fails acceptance.
 - **Access:**
   - An authorized browser can reach both the `dev` and `stage` hostnames.
-  - Diagnostics works on the WARP-enrolled Android device and on the Simulator.
-  - A signed-out browser is denied both the app and `/api/health`.
+  - Diagnostics works on the Android device and on the Simulator, signed in as a tester.
+  - A signed-out browser is denied both the app and `/api/health`, on both hostnames and on a deployment URL.
   - Branches other than `dev` and `stage` produce no deployment.
 - **Free plan:**
   - The accounts are still on Workers Free with fail-closed on, with no paid bindings and no automatic upgrades.
@@ -639,15 +640,16 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 | Cloudflare Function secrets | Encrypted Cloudflare secrets: production (staging values) and preview (development values) | Both Cloudflare administrators | GitHub, committed files, `EXPO_PUBLIC_*`, issues, agent environments |
 | EAS signing credentials | EAS remote credentials, plus `harminder0209`'s encrypted keystore backup | Expo Owner and Admin | The repository, `credentials.json`, any working copy |
 | `GITHUB_TOKEN` | A single job, scoped to that job, expiring when the job ends | GitHub | The sandbox |
-| Access allowlist emails, MFA and recovery codes | Private configuration; `harminder0209`'s password manager | The owners | The repository, the specification, issues |
+| Tester passwords | The `TESTER_CREDENTIALS` Function secret; each tester's own password manager | Both Cloudflare administrators | The repository, the specification, issues, chat transcripts |
+| MFA and recovery codes | `harminder0209`'s password manager | The owners | The repository, the specification, issues |
 
-- There is no `EXPO_TOKEN`, no Cloudflare API token, no Access service token, no PAT and no GitHub App credential.
+- There is no `EXPO_TOKEN`, no Cloudflare API token, no PAT and no GitHub App credential.
 - Every `EXPO_PUBLIC_*` value is non-secret by definition. `scan:dist` enforces this for the web bundle.
 
 ## 14. Cost boundary
 
 - GitHub Actions: standard runners are free for public repositories.
-- Cloudflare: Workers Free and Zero Trust Free, fail closed, no paid bindings, no payment method.
+- Cloudflare: Workers Free, fail closed, no paid bindings, no payment method. No Zero Trust, because its Free plan requires a payment method.
 - EAS: Free, with no payment method. Running out of quota means Blocked, never a bill.
 - No Apple Developer Program and no Play Console.
 - Agent model usage comes out of `harminder0209`'s existing Claude subscription. There is no incremental charge.
@@ -656,7 +658,7 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 
 1. **Unreviewed agent code reaches `dev`.**
    - Agent self-merge means code shaped by prompt injection can reach the development deployment, including Function code that can read the development secrets.
-   - What limits it: the product-path guard on every pass and on the whole PR, the required checks, Access on the deployment, and the human promotion to `stage`.
+   - What limits it: the product-path guard on every pass and on the whole PR, the required checks, tester access on the deployment, and the human promotion to `stage`.
 2. **No egress filtering in the sandbox.**
    - A prompt-injected agent could send the model token elsewhere.
    - What limits it: the token is revocable, it's the only secret present, the job token expires when the job ends, and the job has a timeout.
@@ -671,6 +673,9 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 6. **Tickets close before their code merges.**
    - A green pass closes its ticket straight away so dependants unblock. If the AFK PR then fails its checks and is closed without merging, those tickets are wrongly closed.
    - Recovery is a human reopening them. A crashed run leaves its green passes on the pushed branch.
+7. **Basic auth instead of an identity provider.**
+   - The deployments are guarded by passwords, not by Cloudflare Access with one-time PINs: no lockout, no MFA, no per-session expiry, and browsers keep the credentials until they're closed.
+   - What limits it: one strong password per tester, held only in an encrypted secret, HTTPS only, a fail-closed middleware, and no user data behind it. A leaked password is rotated by changing the secret.
 
 ## 16. Verify at implementation
 
@@ -718,7 +723,7 @@ These are fixed as requirements. Only the method is still open. If one of them f
 ## Access
 - [ ] Authorized browser reaches dev and stage
 - [ ] Signed-out browser denied app and /api/health
-- [ ] WARP Android and Simulator reach Diagnostics
+- [ ] Android and Simulator reach Diagnostics as a tester
 - [ ] Branches other than dev/stage produced no deployment
 
 ## Behaviour (Chrome, Safari narrow + wide, Android, iOS Simulator)
@@ -757,6 +762,7 @@ Where decisions conflicted, the later one wins.
 | EAS channel `preview` ([Verify Expo preview compatibility and runtime fingerprinting](https://github.com/harminder0209/langili/issues/3)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | Channel `staging`. The build profile stays `preview`. |
 | Staging values only in `eas.json` ([Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15)) | [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17) | Also plain-text EAS `preview` variables, because `eas update` ignores the profile's `env` |
 | Physical iPhone ([Define verification evidence and rollback acceptance](https://github.com/harminder0209/langili/issues/4)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | EAS iOS Simulator build |
+| Cloudflare Access with email one-time PIN and WARP ([Define Cloudflare provisioning and preview access policy](https://github.com/harminder0209/langili/issues/12)) | [Cloudflare development deployment and canonical staging origin](https://github.com/harminder0209/langili/issues/28): Zero Trust Free needs a payment method | Basic-auth middleware with per-tester passwords; native access re-planned |
 | Only the admin promotes to `stage`, then a code-owner approval from the other approver ([Decide the GitHub ownership model for two-person administration](https://github.com/harminder0209/langili/issues/19)) | This specification's approval | Either approver promotes alone, with no approvals required and no `CODEOWNERS` |
 | Auto-merge disabled until validation, and validation doesn't enable it | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | Agent self-merge into `dev` from day one, limited to product paths |
 | A dedicated low-quota API key for the model ([Verify secure Sandcastle activation from GitHub](https://github.com/harminder0209/langili/issues/7)) | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | A subscription OAuth token, revocable, the only secret in the sandbox |

@@ -20,3 +20,15 @@ test('GET /api/health reports the development environment and a full commit as t
     version: expect.stringMatching(/^[0-9a-f]{40}$/),
   });
 });
+
+test.describe('signed out', () => {
+  for (const path of ['/', '/some/client/route', '/favicon.ico', '/api/health']) {
+    test(`is challenged for ${path}`, async ({ baseURL }) => {
+      // Plain fetch, because Playwright request contexts inherit the configured tester credentials.
+      const response = await fetch(new URL(path, baseURL));
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toMatch(/^Basic realm="Langili"/);
+    });
+  }
+});

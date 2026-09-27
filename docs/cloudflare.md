@@ -2,7 +2,7 @@
 
 How the development deployment and the canonical staging origin are set up and checked (spec §7,
 issue #28). Every step here is done by an administrator in the Cloudflare dashboard. Never write
-allowlisted email addresses, account IDs or recovery material into this file or any issue.
+tester passwords, account IDs or recovery material into this file, any issue or any chat.
 
 ## Account
 
@@ -10,7 +10,9 @@ allowlisted email addresses, account IDs or recovery material into this file or 
 - Workers & Pages → Plans: the Free plan fails closed when the daily request allowance runs out.
   Nothing upgrades automatically.
 - MFA on for both administrators. The second administrator has an individual login with only
-  the roles needed for Pages and Zero Trust.
+  the roles needed for Pages.
+- No Zero Trust: its Free plan requires a payment method, so tester access is a Basic-auth
+  middleware instead (below).
 - No Cloudflare API token is created for GitHub. Builds use the GitHub integration only.
 
 ## Pages project
@@ -50,35 +52,41 @@ values and preview gets the development values.
 - `app.config.ts` puts `CF_PAGES_COMMIT_SHA` into `extra.clientRevision`, the **client revision**.
   The Metro cache is cleared so a cached manifest can't carry an older commit.
 - Pages then compiles `functions/`, so the client and the Functions deploy as one unit.
-- `dist/_routes.json` (from `public/`) sends only `/api/*` to Functions. With no top-level
-  `404.html`, Pages serves `index.html` for every other path: the SPA fallback.
+- `dist/_routes.json` (from `public/`) sends every path to Functions, so `functions/_middleware.ts`
+  guards the static assets too. After it lets a request through, a path with no Function falls to
+  the assets, and with no top-level `404.html` Pages serves `index.html`: the SPA fallback.
 
-## Access
+## Tester access
 
-Zero Trust → Access → Applications → **Add a self-hosted application**:
+`functions/_middleware.ts` asks for HTTP Basic credentials on every path of every deployment,
+including each deployment's own `<hash>.<project>.pages.dev` URL. It checks them against the
+encrypted Function secret `TESTER_CREDENTIALS`:
 
-- Destinations: `<project>.pages.dev` and `*.<project>.pages.dev`. The wildcard covers
-  `dev.<project>.pages.dev` and each deployment's own `<hash>.<project>.pages.dev` URL, which is
-  otherwise public.
-- Session duration: 24 hours.
-- Login method: **One-time PIN** only.
-- One **Allow** policy: include **Emails**, holding exactly the two testers' addresses. Add
-  nothing else: no everyone, no email domain, no service token. Anyone not on the list is denied.
-- Every path is covered, including `/api/*`. There are no bypass policies.
+- One `name:password` entry per tester, comma-separated, for example `harminder:<password>,pankaj:<password>`.
+- Each password is at least 16 characters with no spaces or commas. Generate them with
+  `openssl rand -base64 24`, and keep each in that tester's password manager.
+- Use different passwords for production (`stage`) and preview (`dev`).
+- A missing or malformed secret makes every path answer `503`, so a misconfiguration never opens
+  the deployment.
 
-The Pages built-in "Enable access policy" toggle protects only preview hostnames, so the
-self-hosted application above is what protects the production hostname.
+To set or rotate it: Settings → choose **Production** or **Preview** → Variables and secrets →
+Add → type **Secret**, name `TESTER_CREDENTIALS`, then paste the value and save. A secret applies to
+the next deployment, so retry the latest deployment afterwards.
+
+Locally, put a `TESTER_CREDENTIALS` entry in `.dev.vars` for `npm run dev:pages`. The Playwright
+suite starts its own server with a local-only e2e credential.
 
 ## Verification
 
 Record the results on the ticket, without email addresses or session material.
 
 1. Push a commit to `dev`. Note the head SHA with `git rev-parse origin/dev`.
-2. In an authorized browser, open `https://dev.<project>.pages.dev/api/health`. It shows
+2. In a browser, open `https://dev.<project>.pages.dev/api/health` and sign in as a tester. It shows
    `"environment": "development"` and `"version"` equal to that SHA.
 3. Open a client route such as `https://dev.<project>.pages.dev/anything`. The app loads.
 4. In a private window (signed out), open the app and `/api/health` on both hostnames, plus a
-   `<hash>.<project>.pages.dev` deployment URL. Each shows the Access login, never the app or JSON.
+   `<hash>.<project>.pages.dev` deployment URL. Each shows the browser's sign-in prompt, and
+   cancelling it gives `401`, never the app or the health JSON.
 5. Push a branch other than `dev` or `stage`. No deployment appears.
 6. Check the account is still on Workers Free with no payment method, and that GitHub holds no
    Cloudflare token.
