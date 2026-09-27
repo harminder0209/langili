@@ -33,12 +33,15 @@ if it's free, which gives `langili.pages.dev`.
 **Custom branches**, including only `dev`. Leave the exclude list empty. Pull requests from forks
 never build.
 
-**Build variables** (Settings → Variables and Secrets). Both are plain text, not encrypted:
+**Variables live in `wrangler.jsonc`.** With that file in the repo, Pages reads build and runtime
+variables from it and ignores plain-text variables set in the dashboard. It holds only public
+values, per environment:
 
-| Variable                   | Production (`stage`)            | Preview (`dev`)                     |
-| -------------------------- | ------------------------------- | ----------------------------------- |
-| `EXPO_PUBLIC_APP_ENV`      | `staging`                       | `development`                       |
+| Variable                   | `env.production` (`stage`)        | `env.preview` (`dev`)                 |
+| -------------------------- | --------------------------------- | ------------------------------------- |
+| `EXPO_PUBLIC_APP_ENV`      | `staging`                         | `development`                         |
 | `EXPO_PUBLIC_API_BASE_URL` | `https://<project>.pages.dev/api` | `https://dev.<project>.pages.dev/api` |
+| `GOOGLE_CLIENT_ID`         | The Google OAuth client ID        | The same                              |
 
 Encrypted Function secrets, when there are any, go in the same place: production gets the staging
 values and preview gets the development values.
@@ -76,16 +79,17 @@ settings below makes every path answer `503`.
 4. Keep the client ID and client secret for the next step. Don't paste them anywhere else.
 
 **Cloudflare** (Settings → Variables and secrets, once under **Production** and once under
-**Preview**):
+**Preview**). All three are type **Secret**, because the dashboard's plain-text variables are
+ignored while `wrangler.jsonc` exists:
 
-| Name                   | Type   | Value                                                        |
-| ---------------------- | ------ | ------------------------------------------------------------ |
-| `GOOGLE_CLIENT_ID`     | Text   | The client ID                                                |
-| `GOOGLE_CLIENT_SECRET` | Secret | The client secret                                            |
-| `SESSION_SECRET`       | Secret | `openssl rand -base64 32`, different for each environment    |
-| `TESTER_EMAILS`        | Text   | Both Gmail addresses, comma-separated                        |
+| Name                   | Value                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| `GOOGLE_CLIENT_SECRET` | The client secret                                         |
+| `SESSION_SECRET`       | `openssl rand -base64 32`, different for each environment |
+| `TESTER_EMAILS`        | Both Gmail addresses, comma-separated                     |
 
-Variables apply to the next deployment, so retry the latest deployment after changing them.
+The client ID is public, so it lives in `wrangler.jsonc`. Secrets apply to the next deployment,
+so retry the latest deployment after changing them.
 Changing `SESSION_SECRET` signs everyone out, which is how sessions are revoked.
 
 Locally, put the same four keys in `.dev.vars` for `npm run dev:pages`. The Playwright suite

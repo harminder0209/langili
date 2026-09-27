@@ -322,7 +322,7 @@ Sources: [Verify the Cloudflare web, PWA, and staging API topology](https://gith
 
 ### Configuration and identity
 
-- `EXPO_PUBLIC_APP_ENV` and `EXPO_PUBLIC_API_BASE_URL` are build variables for each deployment class.
+- `EXPO_PUBLIC_APP_ENV` and `EXPO_PUBLIC_API_BASE_URL` are build variables for each deployment class, set per environment in `wrangler.jsonc`, because Pages ignores dashboard plain-text variables when that file exists.
 - `CF_PAGES_COMMIT_SHA` goes into the client as the **client revision**. A non-secret generated version module carries the same value into the Function as the **API version**.
 
 ### Access
@@ -330,7 +330,7 @@ Sources: [Verify the Cloudflare web, PWA, and staging API topology](https://gith
 - A root Pages Functions middleware (`functions/_middleware.ts`) protects both hostnames with Google sign-in. It denies by default.
   - Cloudflare Access was dropped: Zero Trust Free needs a payment method on file, which [§14](#14-cost-boundary) forbids.
   - It uses `arctic` for the OAuth code flow with PKCE and `jose` for the session cookie. There is no database.
-- The allowlist holds the exact Gmail addresses of `harminder0209` and `singhpankaj99`, in the Function variable `TESTER_EMAILS`. It's configured privately and never published.
+- The allowlist holds the exact Gmail addresses of `harminder0209` and `singhpankaj99`, in the encrypted Function secret `TESTER_EMAILS`. It's configured privately and never published.
 - Only a verified email on the allowlist gets a session: a signed, HttpOnly cookie that lasts 24 hours and is bound to the origin that issued it, so a `dev` session doesn't open `stage`.
 - A signed-out page visit is sent to Google. A signed-out API call gets `401` and the error envelope, never a redirect.
 - The Google OAuth client lists only the two hostnames' `/auth/callback` (plus local development), so per-deployment `<hash>` URLs can't complete a sign-in and stay closed.
@@ -644,7 +644,7 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 | EAS signing credentials | EAS remote credentials, plus `harminder0209`'s encrypted keystore backup | Expo Owner and Admin | The repository, `credentials.json`, any working copy |
 | `GITHUB_TOKEN` | A single job, scoped to that job, expiring when the job ends | GitHub | The sandbox |
 | Google OAuth client secret and `SESSION_SECRET` | Encrypted Function secrets, separate for production and preview | Both Cloudflare administrators | The repository, the specification, issues, chat transcripts |
-| Tester Gmail addresses | The `TESTER_EMAILS` Function variable | Both Cloudflare administrators | The repository, the specification, issues |
+| Tester Gmail addresses | The `TESTER_EMAILS` Function secret | Both Cloudflare administrators | The repository, the specification, issues |
 | MFA and recovery codes | `harminder0209`'s password manager | The owners | The repository, the specification, issues |
 
 - There is no `EXPO_TOKEN`, no Cloudflare API token, no PAT and no GitHub App credential.

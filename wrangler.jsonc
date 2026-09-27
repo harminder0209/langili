@@ -3,4 +3,30 @@
   "name": "langili",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-09-25",
+  // With this file present, Pages takes build and runtime variables from here and ignores plain
+  // text variables set in the dashboard. Only public values belong here: secrets, including the
+  // tester allowlist, stay encrypted in the dashboard (docs/cloudflare.md).
+  // Top level is local `wrangler pages dev`; `.dev.vars` supplies the sign-in values there.
+  "vars": {
+    "EXPO_PUBLIC_APP_ENV": "development",
+    "EXPO_PUBLIC_API_BASE_URL": "http://localhost:8788/api",
+  },
+  "env": {
+    // `stage`: the canonical staging origin.
+    "production": {
+      "vars": {
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_API_BASE_URL": "https://langili.pages.dev/api",
+        "GOOGLE_CLIENT_ID": "41528880383-0n5qn6amnqgvohj5p03c4e5m31ncej0n.apps.googleusercontent.com",
+      },
+    },
+    // `dev`: the development deployment.
+    "preview": {
+      "vars": {
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "EXPO_PUBLIC_API_BASE_URL": "https://dev.langili.pages.dev/api",
+        "GOOGLE_CLIENT_ID": "41528880383-0n5qn6amnqgvohj5p03c4e5m31ncej0n.apps.googleusercontent.com",
+      },
+    },
+  },
 }
