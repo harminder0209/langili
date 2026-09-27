@@ -47,7 +47,7 @@ _Avoid_: preview deployment, dev environment
 
 **Promotion**:
 A human merge that moves already-checked work to the next branch: `dev` to `stage`, and later `stage` to `prod`.
-Promoting to `stage` is the acceptance approver's declaration that the development deployment looked right.
+Promoting to `stage` declares that the development deployment looked right, and requires approval from an acceptance approver other than the person who opened the promotion.
 _Avoid_: release, tag
 
 **Authorized tester**:
