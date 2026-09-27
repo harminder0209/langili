@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
-Issues and specs live in GitHub Issues for `harminder0209/language_app`:
-https://github.com/harminder0209/language_app/issues
+Issues and specs live in GitHub Issues for `harminder0209/langili`:
+https://github.com/harminder0209/langili/issues
 
 Use the `gh` CLI for all operations.
 
