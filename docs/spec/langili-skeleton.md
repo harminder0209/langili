@@ -1,6 +1,6 @@
 # Langili skeleton specification
 
-**Status:** Awaiting approval. Sign-off is an approving review from `singhpankaj99` on the PR that adds this file.
+**Status:** Awaiting approval. Sign-off is either acceptance approver (`harminder0209` or `singhpankaj99`) merging the PR that adds this file.
 **Milestone:** the first Langili skeleton.
 **Source map:** [Wayfinder: Define the Langili cross-platform skeleton](https://github.com/harminder0209/langili/issues/1).
 
@@ -404,13 +404,8 @@ Source: [Decide the GitHub ownership model for two-person administration](https:
   - `singhpankaj99` is a collaborator with write access. That covers merging to `dev`, applying `ready-for-agent` and reviewing.
 - **Branch rules:**
   - `dev` (default): PR required, no approvals, required checks `scope`, `ci` and `gitleaks`. No force-push and no deletion.
-  - `stage`: the same three checks, plus **one code-owner approval from the approver who didn't author the PR**, on the latest push, with no bypass. `CODEOWNERS` lists both approvers.
+  - `stage`: PR required, merge commits only, the same three checks, **no approvals**. **Either** acceptance approver may open and merge a promotion alone, and nobody gets a bypass. There is no `CODEOWNERS` file.
   - `prod`: locked, with no bypass.
-- **Emergency path:** if the other approver is unavailable, `harminder0209` may:
-  1. disable the `stage` ruleset for a single promotion;
-  2. merge;
-  3. re-enable the ruleset;
-  4. record the reason in the promotion PR.
 - **Fork PRs:**
   - Outside collaborators need approval before their CI runs.
   - Forks never trigger agents, deployments or jobs that carry secrets.
@@ -634,14 +629,17 @@ The skeleton, and later the pipeline-validation change, succeed only when every 
 
 1. **Unreviewed agent code reaches `dev`.**
    - Agent self-merge means code shaped by prompt injection can reach the development deployment, including Function code that can read the development secrets.
-   - What limits it: the product-path guard, the required checks, Access on the deployment, and the human gate on `stage`.
+   - What limits it: the product-path guard, the required checks, Access on the deployment, and the human promotion to `stage`.
 2. **No egress filtering in the sandbox.**
    - A prompt-injected agent could send the model token elsewhere.
    - What limits it: the token is revocable, it's the only secret present, the job token expires when the job ends, and the job has a timeout.
 3. **At-most-once, not exactly-once.**
    - A crash between the claim and the launch can leave an approved issue with no run.
    - Recovery is a human applying the label again.
-4. **No spend lock on Cloudflare.**
+4. **Nobody else reviews a promotion.**
+   - Either approver can promote to `stage` alone, so agent-written code can reach canonical staging with only one person having looked at the development deployment.
+   - What limits it: the required checks, the acceptance record, and instant rollback.
+5. **No spend lock on Cloudflare.**
    - The no-billing guarantee depends on staying on Workers Free and not enabling paid products.
 
 ## 16. Verify at implementation
@@ -728,7 +726,7 @@ Where decisions conflicted, the later one wins.
 | EAS channel `preview` ([Verify Expo preview compatibility and runtime fingerprinting](https://github.com/harminder0209/langili/issues/3)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | Channel `staging`. The build profile stays `preview`. |
 | Staging values only in `eas.json` ([Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15)) | [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17) | Also plain-text EAS `preview` variables, because `eas update` ignores the profile's `env` |
 | Physical iPhone ([Define verification evidence and rollback acceptance](https://github.com/harminder0209/langili/issues/4)) | [Define EAS ownership, credentials, and preview provisioning](https://github.com/harminder0209/langili/issues/15) | EAS iOS Simulator build |
-| Only the admin promotes to `stage` | [Decide the GitHub ownership model for two-person administration](https://github.com/harminder0209/langili/issues/19) | A code-owner approval from the other approver, with no bypass |
+| Only the admin promotes to `stage`, then a code-owner approval from the other approver ([Decide the GitHub ownership model for two-person administration](https://github.com/harminder0209/langili/issues/19)) | This specification's approval | Either approver promotes alone, with no approvals required and no `CODEOWNERS` |
 | Auto-merge disabled until validation, and validation doesn't enable it | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | Agent self-merge into `dev` from day one, limited to product paths |
 | A dedicated low-quota API key for the model ([Verify secure Sandcastle activation from GitHub](https://github.com/harminder0209/langili/issues/7)) | [Define Sandcastle runner provisioning and credential custody](https://github.com/harminder0209/langili/issues/16) | A subscription OAuth token, revocable, the only secret in the sandbox |
 | `ci` and Gitleaks as the only required checks ([Define the repository architecture and quality-gate contract](https://github.com/harminder0209/langili/issues/14)) | [Define the delivery workflow and promotion gates](https://github.com/harminder0209/langili/issues/17), and this specification's approval | Adds `scope`, enforced on PRs into `dev` and passing on PRs into `stage` |
