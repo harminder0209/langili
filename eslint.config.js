@@ -10,6 +10,12 @@ module.exports = defineConfig([
     settings: { react: { version: '19.2' } },
   },
   {
-    ignores: ['dist/*', 'functions/types.d.ts', 'playwright-report/*', 'test-results/*'],
+    ignores: [
+      'dist/*',
+      'functions/types.d.ts',
+      'functions/build-info.ts',
+      'playwright-report/*',
+      'test-results/*',
+    ],
   },
 ]);

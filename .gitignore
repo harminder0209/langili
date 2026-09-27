@@ -45,6 +45,7 @@ example
 # Cloudflare
 .wrangler/
 functions/types.d.ts
+functions/build-info.ts
 .dev.vars
 .dev.vars.*
 !.dev.vars.example

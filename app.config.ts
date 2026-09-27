@@ -38,6 +38,11 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  extra: {
+    // The client revision (spec §4 and §7): the Pages build commit, absent from local builds so
+    // Diagnostics shows `Not supplied` rather than a similar-looking value.
+    clientRevision: process.env.CF_PAGES_COMMIT_SHA,
+  },
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
