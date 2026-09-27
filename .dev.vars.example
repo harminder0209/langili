@@ -1,2 +1,9 @@
 # Cloudflare Pages Function variables for local `npm run dev:pages`.
 # Copy to .dev.vars (gitignored) and fill in values locally. Key names only here.
+# Google sign-in for the tester gate (functions/_middleware.ts). The OAuth client must list
+# http://localhost:8788/auth/callback as a redirect URI. SESSION_SECRET is at least 32 characters.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SESSION_SECRET=
+# Comma-separated Gmail addresses allowed in.
+TESTER_EMAILS=
