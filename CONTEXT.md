@@ -47,7 +47,7 @@ _Avoid_: preview deployment, dev environment
 
 **Promotion**:
 A human merge that moves already-checked work to the next branch: `dev` to `stage`, and later `stage` to `prod`.
-Promoting to `stage` is the acceptance approver's declaration that the development deployment looked right.
+Promoting to `stage` declares that the development deployment looked right, and requires approval from an acceptance approver other than the person who opened the promotion.
 _Avoid_: release, tag
 
 **Authorized tester**:
@@ -57,3 +57,20 @@ For the first skeleton milestone, the authorized testers are `harminder0209` and
 **Acceptance approver**:
 An authorized tester permitted to declare the Langili skeleton or pipeline-validation change successful after all required evidence has been recorded.
 For the first skeleton milestone, either `harminder0209` or `singhpankaj99` may approve independently.
+
+**Authorization event**:
+One specific application of the `ready-for-agent` label to an issue by `harminder0209` or `singhpankaj99`.
+It is the only thing that can start an agent run; the label merely being present, a rerun, or a comment is not authorization.
+
+**Agent run**:
+One sandboxed coding-agent execution against the single issue named by an authorization event, started at most once per authorization event.
+_Avoid_: agent job, loop
+
+**Agent self-merge**:
+An agent run merging its own pull request into `dev` after the required checks pass, without human review, allowed only when the change touches product code alone.
+Changes to infrastructure or workflow always need a human merge.
+_Avoid_: auto-merge
+
+**Acceptance record**:
+The single durable record of the evidence and verdict for one promoted candidate: what was deployed, what was checked, and who approved it.
+Each promotion to `stage` gets exactly one acceptance record.
