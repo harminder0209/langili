@@ -1,3 +1,4 @@
+// Demo for #27: a product-only change. Not for merging.
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function Home() {
